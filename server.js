@@ -1,10 +1,15 @@
 const express = require('express');
-const { createCanvas, loadImage } = require('canvas');
+const { createCanvas, loadImage, registerFont } = require('canvas');
 const csvParser = require('csv-parser');
 const { Readable } = require('stream');
+const path = require('path');
 
 const app = express();
 const port = 3000;
+
+// Register the custom font
+const fontPath = path.join(__dirname, 'fonts', 'Lemon-Regular.ttf');
+registerFont(fontPath, { family: 'Lemon' });
 
 // Function to wrap text based on a given width and calculate font size
 const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight) => {
@@ -15,7 +20,7 @@ const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight) => {
     // Find the appropriate font size that allows the text to fit within the max height
     while (true) {
         // Set the font size and style
-        ctx.font = `${fontSize}px Arial`;
+        ctx.font = `${fontSize}px Lemon`;
 
         // Split the text into words
         const words = text.split(' ');
@@ -179,7 +184,7 @@ app.get('/banner', async (req, res) => {
         const lineFontSize = index === 0 ? fontSize * 1.1 : fontSize;
 
         // Set the font size and style for the current line
-        ctx.font = `${lineFontSize}px Arial`;
+        ctx.font = `${lineFontSize}px Lemon`;
 
         // Calculate Y position for the current line
         const yPos = textYStart + index * lineFontSize * 1.2;
