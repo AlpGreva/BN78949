@@ -4,7 +4,7 @@ const csvParser = require('csv-parser');
 const { Readable } = require('stream');
 
 const app = express();
-const port =  process.env.PORT | 5000;
+const port = process.env.PORT || 3000;
 
 // Function to wrap text based on a given width and calculate font size
 const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight) => {
