@@ -1,7 +1,7 @@
 const express = require('express');
 const { createCanvas, loadImage } = require('canvas');
-const csv = require('csv-parser');
-const fs = require('fs');
+const csvParser = require('csv-parser');
+const { Readable } = require('stream');
 
 const app = express();
 const port = 3000;
@@ -58,48 +58,70 @@ const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight) => {
     // Return the wrapped text and calculated font size
     return {
         wrappedText,
-        fontSize
+        fontSize,
     };
 };
 
-// Function to read text data from a CSV file
-const readTextDataFromCSV = (filePath) => {
-    return new Promise((resolve, reject) => {
-        const textData = [];
-        
-        fs.createReadStream(filePath)
-            .pipe(csv())
-            .on('data', (row) => {
-                textData.push(row);
-            })
-            .on('end', () => {
-                resolve(textData);
-            })
-            .on('error', (err) => {
-                reject(err);
-            });
-    });
+// Function to read text data from a CSV file at an external URL
+const readTextDataFromCSV = async (url) => {
+    try {
+        // Dynamically import node-fetch
+        const fetch = (await import('node-fetch')).default;
+
+        // Fetch CSV data from the external URL
+        const response = await fetch(url);
+
+        // Check if the response is not successful
+        if (!response.ok) {
+            throw new Error(`Failed to fetch CSV data: ${response.statusText}`);
+        }
+
+        // Parse the CSV data using csv-parser
+        const csvData = [];
+        const csvStream = response.body.pipe(csvParser());
+        return new Promise((resolve, reject) => {
+            csvStream
+                .on('data', (row) => {
+                    csvData.push(row);
+                })
+                .on('end', () => {
+                    resolve(csvData);
+                })
+                .on('error', (err) => {
+                    console.error('Error parsing CSV data:', err);
+                    reject(err);
+                });
+        });
+    } catch (err) {
+        console.error('Error fetching CSV data:', err);
+        throw err;
+    }
 };
 
 // Route to generate banners
 app.get('/banner', async (req, res) => {
-    // Get the file path for the CSV file from the request query
-    const csvFilePath = req.query.csvFilePath || 'data.csv'; // Provide default file path if needed
+    // Get the URL for the CSV file from the request query
+    const csvFileUrl = req.query.csvUrl;
     
+    // Ensure csvUrl is provided by the user
+    if (!csvFileUrl) {
+        res.status(400).send('CSV URL is required');
+        return;
+    }
+
     // Read the text data from the CSV file
     let textData;
     try {
-        textData = await readTextDataFromCSV(csvFilePath);
+        textData = await readTextDataFromCSV(csvFileUrl);
     } catch (err) {
         console.error('Error reading CSV file:', err);
         res.status(500).send('Error reading CSV file');
         return;
     }
 
-    // Example: Use the text data from the CSV file (modify as needed)
-    // For demonstration, we'll assume the first row contains text data for the banner
+    // Use the text data from the CSV file
     const text = textData[0]?.text || 'Default Text';
-    
+
     // Get other parameters from the request query
     const bgColor = req.query.bgColor || '#ffffff';
     const textColor = req.query.textColor || '#000000';
@@ -111,12 +133,10 @@ app.get('/banner', async (req, res) => {
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
-    // Dynamically import `node-fetch`
-    const fetch = (await import('node-fetch')).default;
-
     // Load the image from the provided URL
     try {
         if (imgUrl) {
+            const fetch = (await import('node-fetch')).default;
             const imageResponse = await fetch(imgUrl);
             const imageArrayBuffer = await imageResponse.arrayBuffer();
             const imageBuffer = Buffer.from(imageArrayBuffer);
@@ -156,7 +176,6 @@ app.get('/banner', async (req, res) => {
     // Draw each line of wrapped text in the colored rectangle
     wrappedText.forEach((line, index) => {
         // Calculate font size for each line
-        // First line font size is 10% larger than the base font size
         const lineFontSize = index === 0 ? fontSize * 1.1 : fontSize;
 
         // Set the font size and style for the current line
