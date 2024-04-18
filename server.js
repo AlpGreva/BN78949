@@ -1,15 +1,68 @@
 const express = require('express');
-const { createCanvas, loadImage, registerFont } = require('canvas');
+const { createCanvas, loadImage } = require('canvas');
 const csvParser = require('csv-parser');
 const { Readable } = require('stream');
+const fs = require('fs');
 const path = require('path');
 
 const app = express();
 const port = 3000;
 
-// Register the custom font
-const fontPath = path.join(__dirname, 'fonts', 'Lemon-Regular.ttf');
-registerFont(fontPath, { family: 'Lemon' });
+const wrapTextAndDrawOptions = (ctx, text, options, maxWidth, maxHeight, width, height) => {
+    // Wrap the main text and calculate font size
+    const { wrappedText, fontSize } = wrapTextAndCalculateFontSize(ctx, text, maxWidth, maxHeight);
+    
+    // Calculate the starting position for the main text
+    const totalTextHeight = wrappedText.length * fontSize * 1.2; // Adjust line height as needed
+    const textYStart = height * 0.67 + (height * 0.33 - totalTextHeight) / 2 - 20; // Move main text up by 20px
+    
+    // Set text alignment
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Draw each line of wrapped text in the colored rectangle
+    wrappedText.forEach((line, index) => {
+        // Calculate font size for each line
+        const lineFontSize = index === 0 ? fontSize * 1.1 : fontSize;
+
+        // Set the font size and style for the current line
+        ctx.font = `${lineFontSize}px Lemon`;
+
+        // Calculate Y position for the current line
+        const yPos = textYStart + index * lineFontSize * 1.2;
+
+        // Draw the line of text
+        ctx.fillText(line, width / 2, yPos);
+    });
+    
+    // Calculate the starting Y position for the options
+    let optionsYStart = textYStart + totalTextHeight + fontSize * 1.2;
+
+    // Predefined font size for option lines
+    const optionFontSize = 30;
+
+    // Draw each option line
+    options.forEach((option, index) => {
+        // Set the font size and style for the option line
+        ctx.font = `${optionFontSize}px Lemon`;
+        
+        // Wrap the option text and calculate font size dynamically
+        const { wrappedText: wrappedOptionText, fontSize: optionFontSize } = wrapTextAndCalculateFontSize(ctx, option, maxWidth, maxHeight);
+
+        // Check if option exceeds 80% of the banner width
+        if (ctx.measureText(option).width > maxWidth * 0.8) {
+            // Resize font size to fit within 80% of the banner width
+            ctx.font = `${optionFontSize}px Lemon`;
+        }
+
+        // Calculate Y position for the current option line
+        const optionYPos = optionsYStart + index * (optionFontSize * 1.2);
+        
+        // Draw the option text
+        ctx.fillText(option, width / 2, optionYPos);
+    });
+};
+
 
 // Function to wrap text based on a given width and calculate font size
 const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight) => {
@@ -124,8 +177,13 @@ app.get('/banner', async (req, res) => {
         return;
     }
 
-    // Use the text data from the CSV file
+    // Extract the main text and options from the CSV data
     const text = textData[0]?.text || 'Default Text';
+    const options = [
+        textData[0]?.option1 || '',
+        textData[0]?.option2 || '',
+        textData[0]?.option3 || ''
+    ];
 
     // Get other parameters from the request query
     const bgColor = req.query.bgColor || '#ffffff';
@@ -167,31 +225,8 @@ app.get('/banner', async (req, res) => {
     // Calculate the maximum height for the text (80% of the rectangle height)
     const maxHeight = height * 0.33 * 0.8;
 
-    // Wrap the text and calculate font size dynamically
-    const { wrappedText, fontSize } = wrapTextAndCalculateFontSize(ctx, text, maxWidth, maxHeight);
-
-    // Calculate the starting vertical position for text drawing
-    const totalTextHeight = wrappedText.length * fontSize * 1.2; // Adjust line height as needed
-    const textYStart = height * 0.67 + (height * 0.33 - totalTextHeight) / 2;
-
-    // Set text alignment
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    // Draw each line of wrapped text in the colored rectangle
-    wrappedText.forEach((line, index) => {
-        // Calculate font size for each line
-        const lineFontSize = index === 0 ? fontSize * 1.1 : fontSize;
-
-        // Set the font size and style for the current line
-        ctx.font = `${lineFontSize}px Lemon`;
-
-        // Calculate Y position for the current line
-        const yPos = textYStart + index * lineFontSize * 1.2;
-
-        // Draw the line of text
-        ctx.fillText(line, width / 2, yPos);
-    });
+    // Call the function to wrap the main text and draw options
+    wrapTextAndDrawOptions(ctx, text, options, maxWidth, maxHeight, width, height);
 
     // Convert canvas to PNG image and send as a response
     const imageBuffer = canvas.toBuffer('image/png');
