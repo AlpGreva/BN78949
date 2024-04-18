@@ -8,13 +8,14 @@ const path = require('path');
 const app = express();
 const port = 3000;
 
+// Function to wrap and draw main text and options
 const wrapTextAndDrawOptions = (ctx, text, options, maxWidth, maxHeight, width, height) => {
     // Wrap the main text and calculate font size
     const { wrappedText, fontSize } = wrapTextAndCalculateFontSize(ctx, text, maxWidth, maxHeight);
     
     // Calculate the starting position for the main text
     const totalTextHeight = wrappedText.length * fontSize * 1.2; // Adjust line height as needed
-    const textYStart = height * 0.67 + (height * 0.33 - totalTextHeight) / 2 - 20; // Move main text up by 20px
+    const textYStart = height * 0.67 + (height * 0.33 - totalTextHeight) / 2 -300;
     
     // Set text alignment
     ctx.textAlign = 'center';
@@ -38,31 +39,18 @@ const wrapTextAndDrawOptions = (ctx, text, options, maxWidth, maxHeight, width, 
     // Calculate the starting Y position for the options
     let optionsYStart = textYStart + totalTextHeight + fontSize * 1.2;
 
-    // Predefined font size for option lines
-    const optionFontSize = 30;
-
     // Draw each option line
     options.forEach((option, index) => {
         // Set the font size and style for the option line
-        ctx.font = `${optionFontSize}px Lemon`;
+        ctx.font = `${fontSize}px Lemon`;
         
-        // Wrap the option text and calculate font size dynamically
-        const { wrappedText: wrappedOptionText, fontSize: optionFontSize } = wrapTextAndCalculateFontSize(ctx, option, maxWidth, maxHeight);
-
-        // Check if option exceeds 80% of the banner width
-        if (ctx.measureText(option).width > maxWidth * 0.8) {
-            // Resize font size to fit within 80% of the banner width
-            ctx.font = `${optionFontSize}px Lemon`;
-        }
-
         // Calculate Y position for the current option line
-        const optionYPos = optionsYStart + index * (optionFontSize * 1.2);
+        const optionYPos = optionsYStart + index * (fontSize * 1.2);
         
         // Draw the option text
         ctx.fillText(option, width / 2, optionYPos);
     });
 };
-
 
 // Function to wrap text based on a given width and calculate font size
 const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight) => {
