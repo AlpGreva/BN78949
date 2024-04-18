@@ -1,5 +1,5 @@
 const express = require('express');
-const { createCanvas, loadImage } = require('canvas');
+const { createCanvas, loadImage, registerFont } = require('canvas');
 const csvParser = require('csv-parser');
 const { Readable } = require('stream');
 const fs = require('fs');
@@ -10,6 +10,9 @@ const path = require('path');
 const app = express();
 const port = 3000;
 
+// Register the custom font
+registerFont(path.join(__dirname, 'fonts', 'Lemon-Regular.ttf'), { family: 'Lemon' });
+
 // Function to wrap text and calculate font size dynamically
 const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight) => {
     let fontSize = 50; // Initial font size
@@ -18,7 +21,7 @@ const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight) => {
 
     // Find the appropriate font size that allows the text to fit within the max height
     while (true) {
-        ctx.font = `${fontSize}px Arial`; // Set the font style and size
+        ctx.font = `${fontSize}px Lemon`; // Set the font style and size
 
         const words = text.split(' ');
         let line = '';
