@@ -1,56 +1,12 @@
 const express = require('express');
-const { createCanvas, loadImage } = require('canvas');
+const { createCanvas, loadImage, registerFont } = require('canvas');
 const csvParser = require('csv-parser');
-const { Readable } = require('stream');
-const fs = require('fs');
-const path = require('path');
 
 const app = express();
 const port = 3000;
 
-// Function to wrap and draw main text and options
-const wrapTextAndDrawOptions = (ctx, text, options, maxWidth, maxHeight, width, height) => {
-    // Wrap the main text and calculate font size
-    const { wrappedText, fontSize } = wrapTextAndCalculateFontSize(ctx, text, maxWidth, maxHeight);
-    
-    // Calculate the starting position for the main text
-    const totalTextHeight = wrappedText.length * fontSize * 1.2; // Adjust line height as needed
-    const textYStart = height * 0.67 + (height * 0.33 - totalTextHeight) / 2 -300;
-    
-    // Set text alignment
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    // Draw each line of wrapped text in the colored rectangle
-    wrappedText.forEach((line, index) => {
-        // Calculate font size for each line
-        const lineFontSize = index === 0 ? fontSize * 1.1 : fontSize;
-
-        // Set the font size and style for the current line
-        ctx.font = `${lineFontSize}px Lemon`;
-
-        // Calculate Y position for the current line
-        const yPos = textYStart + index * lineFontSize * 1.2;
-
-        // Draw the line of text
-        ctx.fillText(line, width / 2, yPos);
-    });
-    
-    // Calculate the starting Y position for the options
-    let optionsYStart = textYStart + totalTextHeight + fontSize * 1.2;
-
-    // Draw each option line
-    options.forEach((option, index) => {
-        // Set the font size and style for the option line
-        ctx.font = `${fontSize}px Lemon`;
-        
-        // Calculate Y position for the current option line
-        const optionYPos = optionsYStart + index * (fontSize * 1.2);
-        
-        // Draw the option text
-        ctx.fillText(option, width / 2, optionYPos);
-    });
-};
+// Register the custom font (Lemon-Regular.ttf) in the same directory
+registerFont('fonts/Lemon-Regular.ttf', { family: 'Lemon' });
 
 // Function to wrap text based on a given width and calculate font size
 const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight) => {
@@ -112,7 +68,7 @@ const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight) => {
 const readTextDataFromCSV = async (url) => {
     try {
         // Dynamically import node-fetch
-        const fetch = (await import('node-fetch')).default;
+        const { default: fetch } = await import('node-fetch');
 
         // Fetch CSV data from the external URL
         const response = await fetch(url);
@@ -144,11 +100,68 @@ const readTextDataFromCSV = async (url) => {
     }
 };
 
+// Function to draw text and options on the canvas
+const wrapTextAndDrawOptions = (ctx, text, options, maxWidth, maxHeight, width, height) => {
+    // Wrap the main text and calculate font size
+    const { wrappedText, fontSize } = wrapTextAndCalculateFontSize(ctx, text, maxWidth, maxHeight);
+
+    // Calculate the starting position for the main text
+    const totalTextHeight = wrappedText.length * fontSize * 1.2; // Adjust line height as needed
+    const textYStart = height * 0.67 + (height * 0.33 - totalTextHeight) / 2;
+
+    // Set text alignment
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Draw each line of wrapped text in the colored rectangle
+    wrappedText.forEach((line, index) => {
+        // Calculate font size for each line
+        const lineFontSize = index === 0 ? fontSize * 1.1 : fontSize;
+
+        // Set the font size and style for the current line
+        ctx.font = `${lineFontSize}px Lemon`;
+
+        // Calculate Y position for the current line
+        const yPos = textYStart + index * lineFontSize * 1.2;
+
+        // Draw the line of text
+        ctx.fillText(line, width / 2, yPos);
+    });
+
+    // Starting Y position for the options
+    let optionsYStart = textYStart + totalTextHeight;
+
+    // Starting font size for options
+    const optionFontSizeStart = 30;
+
+    // Draw each option line
+    options.forEach((option, index) => {
+        // Start with predefined font size
+        let optionFontSize = optionFontSizeStart;
+
+        // Set the font size and style for the option line
+        ctx.font = `${optionFontSize}px Lemon`;
+
+        // Wrap the option text and calculate font size dynamically if needed
+        while (ctx.measureText(option).width > maxWidth) {
+            // Reduce the font size until the option fits within 80% of the max width
+            optionFontSize -= 1;
+            ctx.font = `${optionFontSize}px Lemon`;
+        }
+
+        // Calculate Y position for the current option line
+        const optionYPos = optionsYStart + index * optionFontSize * 1.2;
+
+        // Draw the option text
+        ctx.fillText(option, width / 2, optionYPos);
+    });
+};
+
 // Route to generate banners
 app.get('/banner', async (req, res) => {
     // Get the URL for the CSV file from the request query
     const csvFileUrl = req.query.csvUrl;
-    
+
     // Ensure csvUrl is provided by the user
     if (!csvFileUrl) {
         res.status(400).send('CSV URL is required');
@@ -165,12 +178,12 @@ app.get('/banner', async (req, res) => {
         return;
     }
 
-    // Extract the main text and options from the CSV data
+    // Use the text data from the CSV file
     const text = textData[0]?.text || 'Default Text';
     const options = [
-        textData[0]?.option1 || '',
-        textData[0]?.option2 || '',
-        textData[0]?.option3 || ''
+        textData[0]?.option1 || 'Option 1',
+        textData[0]?.option2 || 'Option 2',
+        textData[0]?.option3 || 'Option 3',
     ];
 
     // Get other parameters from the request query
@@ -187,7 +200,6 @@ app.get('/banner', async (req, res) => {
     // Load the image from the provided URL
     try {
         if (imgUrl) {
-            const fetch = (await import('node-fetch')).default;
             const imageResponse = await fetch(imgUrl);
             const imageArrayBuffer = await imageResponse.arrayBuffer();
             const imageBuffer = Buffer.from(imageArrayBuffer);
@@ -213,7 +225,7 @@ app.get('/banner', async (req, res) => {
     // Calculate the maximum height for the text (80% of the rectangle height)
     const maxHeight = height * 0.33 * 0.8;
 
-    // Call the function to wrap the main text and draw options
+    // Draw text and options on the canvas
     wrapTextAndDrawOptions(ctx, text, options, maxWidth, maxHeight, width, height);
 
     // Convert canvas to PNG image and send as a response
