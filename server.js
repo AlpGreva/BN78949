@@ -170,6 +170,7 @@ app.get('/banner', async (req, res) => {
 
     // Wrap the text and calculate font size dynamically
     const { wrappedText, fontSize } = wrapTextAndCalculateFontSize(ctx, text, maxWidth, maxHeight);
+	
 
     // Calculate the starting vertical position for text drawing
     const totalTextHeight = wrappedText.length * fontSize * 1.2; // Adjust line height as needed
@@ -182,9 +183,20 @@ app.get('/banner', async (req, res) => {
     // Draw each line of wrapped text in the colored rectangle
 	wrappedText.sort((a, b) => b.length - a.length); // Sort wrapped text lines in descending order of length
 
+	// Set text shadow properties
+	ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'; // Shadow color (black with lower opacity)
+	ctx.shadowBlur = 5; // Shadow blur radius (adjusted to a smaller value)
+	ctx.shadowOffsetX = 2; // Horizontal shadow offset (adjusted to a smaller value)
+	ctx.shadowOffsetY = 2; // Vertical shadow offset (adjusted to a smaller value)
+
+	// Set stroke properties
+	ctx.lineWidth = 5; // Stroke line width (adjusted to a smaller value)
+	ctx.strokeStyle = 'black'; // Stroke color set to black
+
+	// Draw each line of wrapped text in the colored rectangle
 	wrappedText.forEach((line, index) => {
 		// Calculate font size for each line
-		const lineFontSize = index === 0 ? fontSize * 1.1 : fontSize;
+		const lineFontSize = index === 0 ? fontSize * 1.05 : fontSize; // Slightly larger for the first line
 
 		// Set the font size and style for the current line
 		ctx.font = `${lineFontSize}px Lemon`;
@@ -192,9 +204,19 @@ app.get('/banner', async (req, res) => {
 		// Calculate Y position for the current line
 		const yPos = textYStart + index * lineFontSize * 1.2;
 
+		// Draw the text with stroke
+		ctx.strokeText(line, width / 2, yPos);
+
 		// Draw the line of text
 		ctx.fillText(line, width / 2, yPos);
 	});
+
+	// Reset shadow and stroke properties after drawing the text
+	ctx.shadowColor = 'transparent';
+	ctx.shadowBlur = 0;
+	ctx.shadowOffsetX = 0;
+	ctx.shadowOffsetY = 0;
+	ctx.lineWidth = 1;
 	
 		// ****************************Calculate the starting position for the static text
 	let staticTextYStart = textYStart + totalTextHeight + 20; // Add a little padding
@@ -206,7 +228,7 @@ app.get('/banner', async (req, res) => {
 	ctx.fillText("You'll need for this:", width / 2, staticTextYStart);
 
 	// Calculate the starting position for the options text
-	let optionsTextYStart = staticTextYStart + fontSize * 1.5; // Add a little space between static text and options lines
+	let optionsTextYStart = staticTextYStart + fontSize * 1.3; // Add a little space between static text and options lines
 
 
 	// Calculate the starting position for the options text
