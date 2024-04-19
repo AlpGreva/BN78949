@@ -131,8 +131,8 @@ app.get('/banner', async (req, res) => {
     // Get other parameters from the request query
     const bgColor = req.query.bgColor || '#ffffff';
     const textColor = req.query.textColor || '#000000';
-    const width = parseInt(req.query.width) || 1000;
-    const height = parseInt(req.query.height) || 1500;
+    const width = parseInt(req.query.width) || 1080;
+    const height = parseInt(req.query.height) || 1350;
     const imgUrl = req.query.imgUrl || ''; // URL for the image
 
     // Create a canvas
@@ -173,46 +173,67 @@ app.get('/banner', async (req, res) => {
 
     // Calculate the starting vertical position for text drawing
     const totalTextHeight = wrappedText.length * fontSize * 1.2; // Adjust line height as needed
-    const textYStart = height * 0.67 + (height * 0.33 - totalTextHeight) / 2;
+    const textYStart = height * 0.67 + (height * 0.33 - totalTextHeight) / 2 - 100 ;
 
     // Set text alignment
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
     // Draw each line of wrapped text in the colored rectangle
-    wrappedText.forEach((line, index) => {
-        // Calculate font size for each line
-        const lineFontSize = index === 0 ? fontSize * 1.1 : fontSize;
+	wrappedText.sort((a, b) => b.length - a.length); // Sort wrapped text lines in descending order of length
 
-        // Set the font size and style for the current line
-        ctx.font = `${lineFontSize}px Lemon`;
+	wrappedText.forEach((line, index) => {
+		// Calculate font size for each line
+		const lineFontSize = index === 0 ? fontSize * 1.1 : fontSize;
 
-        // Calculate Y position for the current line
-        const yPos = textYStart + index * lineFontSize * 1.2;
+		// Set the font size and style for the current line
+		ctx.font = `${lineFontSize}px Lemon`;
 
-        // Draw the line of text
-        ctx.fillText(line, width / 2, yPos);
-    });
+		// Calculate Y position for the current line
+		const yPos = textYStart + index * lineFontSize * 1.2;
 
-    // Calculate the starting position for the options text
-    let optionsTextYStart = textYStart + totalTextHeight + 10; // Add a little padding
+		// Draw the line of text
+		ctx.fillText(line, width / 2, yPos);
+	});
+	
+		// ****************************Calculate the starting position for the static text
+	let staticTextYStart = textYStart + totalTextHeight + 20; // Add a little padding
 
-    // Calculate the font size for options text
-    let optionsFontSize = fontSize;
-    let maxOptionWidth = options.reduce((maxWidth, option) => Math.max(maxWidth, ctx.measureText(option).width), 0);
+	// Set the font size and style for the static text
+	ctx.font = `${fontSize}px Arial`;
 
-    // Resize options font size if needed
-    while (maxOptionWidth > maxWidth) {
-        optionsFontSize -= 1;
-        ctx.font = `${optionsFontSize}px Arial`;
-        maxOptionWidth = options.reduce((maxWidth, option) => Math.max(maxWidth, ctx.measureText(option).width), 0);
-    }
+	// Draw the static text
+	ctx.fillText("You'll need for this:", width / 2, staticTextYStart);
 
-    // Draw each option line of text
-    options.forEach((option, index) => {
-        ctx.font = `${optionsFontSize}px Arial`;
-        ctx.fillText(option, width / 2, optionsTextYStart + index * optionsFontSize * 1.1);
-    });
+	// Calculate the starting position for the options text
+	let optionsTextYStart = staticTextYStart + fontSize * 1.5; // Add a little space between static text and options lines
+
+
+	// Calculate the starting position for the options text
+	//let optionsTextYStart = textYStart + totalTextHeight + 10; // Add a little padding
+
+	// Calculate the font size for options text
+	let optionsFontSize = fontSize;
+	let maxOptionWidth = options.reduce((maxWidth, option) => Math.max(maxWidth, ctx.measureText(option).width), 0);
+
+	// Resize options font size if needed
+	while (maxOptionWidth > maxWidth) {
+		optionsFontSize -= 1;
+		ctx.font = `${optionsFontSize}px Arial`;
+		maxOptionWidth = options.reduce((maxWidth, option) => Math.max(maxWidth, ctx.measureText(option).width), 0);
+	}
+
+	// Sort the options in descending order based on the width
+	const sortedOptions = options.map(option => ({
+		text: option,
+		width: ctx.measureText(option).width
+	})).sort((a, b) => b.width - a.width);
+
+	// Draw each option line of text in sorted order
+	sortedOptions.forEach((option, index) => {
+		ctx.font = `${optionsFontSize}px Arial`;
+		ctx.fillText(option.text, width / 2, optionsTextYStart + index * optionsFontSize * 1.1);
+	});
 
     // Convert canvas to PNG image and send as a response
     const imageBuffer = canvas.toBuffer('image/png');
