@@ -5,7 +5,6 @@ const { Readable } = require('stream');
 const fs = require('fs');
 const path = require('path');
 
-
 // Initialize the express app and set the port
 const app = express();
 const port = 3000;
@@ -13,26 +12,40 @@ const port = 3000;
 // Register the custom font
 registerFont(path.join(__dirname, 'fonts', 'Lemon-Regular.ttf'), { family: 'Lemon' });
 
-// Function to wrap text and calculate font size dynamically
-const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight) => {
-    let fontSize = 50; // Initial font size
+const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight, initialFontSize) => {
+    let fontSize = initialFontSize; // Initial font size
     let wrappedText = [];
-    let linesCount;
 
-    // Find the appropriate font size that allows the text to fit within the max height
-    while (true) {
-        ctx.font = `${fontSize}px Lemon`; // Set the font style and size
+    // Split the text into words
+    const words = text.split(' ');
 
-        const words = text.split(' ');
+    // Check if the main text has 4 words or less
+    if (words.length <= 4) {
+        const joinedText = words.join(' ');
+        let lineWidth;
+
+        // Decrease font size until it fits within the maximum width
+        while (true) {
+            ctx.font = `${fontSize}px Lemon`;
+            lineWidth = ctx.measureText(joinedText).width;
+            if (lineWidth <= maxWidth || fontSize <= 1) {
+                wrappedText.push(joinedText);
+                break;
+            }
+            fontSize--;
+        }
+    } else {
+        // Split the first line into two words
+        const firstLine = words.slice(0, 2).join(' ');
+        wrappedText.push(firstLine);
+
+        // Wrap the remaining words
         let line = '';
-        wrappedText = [];
-
-        // Wrap the text based on the max width
-        for (let i = 0; i < words.length; i++) {
-            const testLine = line + (line === '' ? '' : ' ') + words[i];
+        for (let i = 2; i < words.length; i++) {
+            const testLine = line === '' ? words[i] : `${line} ${words[i]}`;
             const lineWidth = ctx.measureText(testLine).width;
 
-            // If the line width exceeds the maximum width, start a new line
+            // If adding the current word would exceed the maximum width
             if (lineWidth > maxWidth) {
                 wrappedText.push(line);
                 line = words[i];
@@ -45,19 +58,14 @@ const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight) => {
         if (line !== '') {
             wrappedText.push(line);
         }
+    }
 
-        // Calculate the total height of the wrapped text
-        const lineHeight = fontSize * 1.2; // Adjust line height as needed
-        linesCount = wrappedText.length;
-        const totalTextHeight = linesCount * lineHeight;
+    // Calculate the total text height
+    const totalTextHeight = wrappedText.length * fontSize * 1.2; // Assuming line height is 1.2 times font size
 
-        // Check if the total text height is within the maximum height
-        if (totalTextHeight <= maxHeight) {
-            break; // Found a suitable font size
-        }
-
-        // Decrease the font size and retry
-        fontSize -= 1;
+    // Decrease the font size if the total text height exceeds the maximum height
+    while (totalTextHeight > maxHeight && fontSize > 1) {
+        fontSize--;
     }
 
     // Return the wrapped text and calculated font size
@@ -66,6 +74,12 @@ const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight) => {
         fontSize,
     };
 };
+
+
+
+
+
+
 
 // Function to read text data from a CSV file at an external URL
 const readTextDataFromCSV = async (url) => {
@@ -103,6 +117,96 @@ const readTextDataFromCSV = async (url) => {
     }
 };
 
+const drawTextGroupWithColorsAndStroke = (ctx, textData, options, width, height, bgColor, textColor, optionColor, lineWidth, strokeStyle) => {
+    // Set initial font sizes for different types of text
+    const mainTextInitialFontSize = 70; // Initial font size for main text
+    const optionInitialFontSize = 40; // Initial font size for options
+    const headingInitialFontSize = 45; // Initial font size for "You'll need for this:" heading
+
+    // Set text color
+    ctx.fillStyle = textColor;
+
+    // Set stroke properties
+    ctx.lineWidth = lineWidth;
+    ctx.strokeStyle = strokeStyle;
+
+    // Calculate the maximum width for the text (80% of the banner width)
+    const maxWidth = width * 0.9;
+
+    // Calculate the maximum height for the text (80% of the canvas height)
+    const maxHeight = height * 0.9;
+
+    // Wrap the main text and calculate font size dynamically
+    const { wrappedText: mainTextWrapped, fontSize: mainTextFontSize } = wrapTextAndCalculateFontSize(ctx, textData, maxWidth, maxHeight, mainTextInitialFontSize);
+
+    // Calculate the starting vertical position for main text drawing
+    const totalMainTextHeight = mainTextWrapped.length * mainTextFontSize * 1.2; // Adjust line height as needed
+    const mainTextYStart = height * 0.65; // Position main text at 10% of the total banner height
+
+    // Set text alignment
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Set text shadow properties
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'; // Shadow color (black with lower opacity)
+    ctx.shadowBlur = 5; // Shadow blur radius
+    ctx.shadowOffsetX = 2; // Horizontal shadow offset
+    ctx.shadowOffsetY = 2; // Vertical shadow offset
+
+    // Draw each line of wrapped main text with stroke
+    mainTextWrapped.forEach((line, index) => {
+        // Set font size for each line
+        ctx.font = `${mainTextFontSize}px Lemon`;
+
+        // Calculate Y position for the current line
+        const yPos = mainTextYStart + index * mainTextFontSize * 1.2;
+
+        // Draw the text with stroke
+        ctx.strokeText(line, width / 2, yPos);
+        ctx.fillText(line, width / 2, yPos);
+    });
+
+    // Reset shadow properties after drawing the main text
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // Set the font size for "You'll need for this:" heading
+    ctx.font = `${headingInitialFontSize}px Arial`;
+
+    // Set the color for "You'll need for this:" heading to black by default
+    ctx.fillStyle = '#000000';
+
+    // Calculate the starting position for the heading
+    let headingYStart = mainTextYStart + totalMainTextHeight + 40; // Add a little padding
+
+    // Draw the heading
+    ctx.fillText("You'll need for this:", width / 2, headingYStart);
+
+    // Underline the heading
+    const headingWidth = ctx.measureText("You'll need for this:").width;
+    ctx.beginPath();
+    ctx.moveTo(width / 2 - headingWidth / 2, headingYStart + headingInitialFontSize * 0.6);
+    ctx.lineTo(width / 2 + headingWidth / 2, headingYStart + headingInitialFontSize * 0.6);
+    ctx.stroke();
+
+    // Set the font size for options
+    ctx.font = `${optionInitialFontSize}px Arial`;
+
+    // Calculate the starting position for the options
+    let optionsYStart = headingYStart + headingInitialFontSize * 2 + 17; // Add a little space between heading and options lines
+
+    // Set text color for options
+    ctx.fillStyle = optionColor;
+
+    // Draw each option line of text without stroke
+    options.forEach((option, index) => {
+        ctx.fillText(option, width / 2, optionsYStart + index * optionInitialFontSize * 1.1);
+    });
+};
+
+
 // Route to generate banners
 app.get('/banner', async (req, res) => {
     // Get the URL for the CSV file from the request query
@@ -131,131 +235,74 @@ app.get('/banner', async (req, res) => {
     // Get other parameters from the request query
     const bgColor = req.query.bgColor || '#ffffff';
     const textColor = req.query.textColor || '#000000';
+    const optionColor = req.query.optionColor || '#000000'; // Option text color
+    const lineWidth = parseFloat(req.query.lineWidth) || 3; // Line width for text
+    const strokeStyle = req.query.strokeStyle || 'black'; // Stroke style for text
     const width = parseInt(req.query.width) || 1080;
     const height = parseInt(req.query.height) || 1350;
-    const imgUrl = req.query.imgUrl || ''; // URL for the image
+    const bgImageUrl = req.query.bgUrl || 'https://i.postimg.cc/Qd01WRnt/zzaz.png'; // URL for the background image https://i.postimg.cc/MTZRxLsy/zzaz.png
+    const imgUrl = req.query.imgUrl || ''; // URL for the other image
 
     // Create a canvas
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
-    // Load the image from the provided URL
+    // Get the scaleFactor from the request query, defaulting to 0.3 if not provided
+    const scaleFactor = parseFloat(req.query.scaleFactor) || 0.3;
+
+    // Load the other image from the provided URL
     try {
         if (imgUrl) {
             const { default: fetch } = await import('node-fetch');
             const imageResponse = await fetch(imgUrl);
             const imageArrayBuffer = await imageResponse.arrayBuffer();
             const imageBuffer = Buffer.from(imageArrayBuffer);
-            const image = await loadImage(imageBuffer);
-            ctx.drawImage(image, 0, 0, width, height * 0.67); // Draw the image in the top 2/3 of the canvas
+            const img = await loadImage(imageBuffer);
+
+            let imgWidth;
+            let imgHeight;
+            let imgX;
+            let imgY;
+
+            // Calculate the dimensions to fit the entire 70% of the canvas size
+            const actualScaleFactor = height * 0.7 / img.height;
+            imgWidth = img.width * actualScaleFactor * scaleFactor;
+            imgHeight = img.height * actualScaleFactor * scaleFactor;
+
+            imgX = (width - imgWidth) / 2; // Center horizontally
+            imgY = (height * 0.7 - imgHeight) / 2; // Center vertically
+
+            // Draw the other image
+            ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
         }
     } catch (error) {
-        console.error('Error loading image:', error);
-        res.status(500).send('Error loading image');
+        console.error('Error loading other image:', error);
+        res.status(500).send('Error loading other image');
         return;
     }
 
-    // Draw the colored rectangle
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, height * 0.67, width, height * 0.33);
+    // Load the background image from the provided URL
+    try {
+        if (bgImageUrl) {
+            const { default: fetch } = await import('node-fetch');
+            const imageResponse = await fetch(bgImageUrl);
+            const imageArrayBuffer = await imageResponse.arrayBuffer();
+            const imageBuffer = Buffer.from(imageArrayBuffer);
+            const bgImage = await loadImage(imageBuffer);
+            ctx.drawImage(bgImage, 0, 100, width, height); // Draw the background image
+        } else {
+            // If no background image URL provided, fill the canvas with the background color
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, width, height);
+        }
+    } catch (error) {
+        console.error('Error loading background image:', error);
+        res.status(500).send('Error loading background image');
+        return;
+    }
 
-    // Set text color
-    ctx.fillStyle = textColor;
-
-    // Calculate the maximum width for the text (80% of the banner width)
-    const maxWidth = width * 0.8;
-
-    // Calculate the maximum height for the text (80% of the rectangle height)
-    const maxHeight = height * 0.33 * 0.8;
-
-    // Wrap the text and calculate font size dynamically
-    const { wrappedText, fontSize } = wrapTextAndCalculateFontSize(ctx, text, maxWidth, maxHeight);
-	
-
-    // Calculate the starting vertical position for text drawing
-    const totalTextHeight = wrappedText.length * fontSize * 1.2; // Adjust line height as needed
-    const textYStart = height * 0.67 + (height * 0.33 - totalTextHeight) / 2 - 100 ;
-
-    // Set text alignment
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    // Draw each line of wrapped text in the colored rectangle
-	wrappedText.sort((a, b) => b.length - a.length); // Sort wrapped text lines in descending order of length
-
-	// Set text shadow properties
-	ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'; // Shadow color (black with lower opacity)
-	ctx.shadowBlur = 5; // Shadow blur radius (adjusted to a smaller value)
-	ctx.shadowOffsetX = 2; // Horizontal shadow offset (adjusted to a smaller value)
-	ctx.shadowOffsetY = 2; // Vertical shadow offset (adjusted to a smaller value)
-
-	// Set stroke properties
-	ctx.lineWidth = 5; // Stroke line width (adjusted to a smaller value)
-	ctx.strokeStyle = 'black'; // Stroke color set to black
-
-	// Draw each line of wrapped text in the colored rectangle
-	wrappedText.forEach((line, index) => {
-		// Calculate font size for each line
-		const lineFontSize = index === 0 ? fontSize * 1.05 : fontSize; // Slightly larger for the first line
-
-		// Set the font size and style for the current line
-		ctx.font = `${lineFontSize}px Lemon`;
-
-		// Calculate Y position for the current line
-		const yPos = textYStart + index * lineFontSize * 1.2;
-
-		// Draw the text with stroke
-		ctx.strokeText(line, width / 2, yPos);
-
-		// Draw the line of text
-		ctx.fillText(line, width / 2, yPos);
-	});
-
-	// Reset shadow and stroke properties after drawing the text
-	ctx.shadowColor = 'transparent';
-	ctx.shadowBlur = 0;
-	ctx.shadowOffsetX = 0;
-	ctx.shadowOffsetY = 0;
-	ctx.lineWidth = 1;
-	
-		// ****************************Calculate the starting position for the static text
-	let staticTextYStart = textYStart + totalTextHeight + 20; // Add a little padding
-
-	// Set the font size and style for the static text
-	ctx.font = `${fontSize}px Arial`;
-
-	// Draw the static text
-	ctx.fillText("You'll need for this:", width / 2, staticTextYStart);
-
-	// Calculate the starting position for the options text
-	let optionsTextYStart = staticTextYStart + fontSize * 1.3; // Add a little space between static text and options lines
-
-
-	// Calculate the starting position for the options text
-	//let optionsTextYStart = textYStart + totalTextHeight + 10; // Add a little padding
-
-	// Calculate the font size for options text
-	let optionsFontSize = fontSize;
-	let maxOptionWidth = options.reduce((maxWidth, option) => Math.max(maxWidth, ctx.measureText(option).width), 0);
-
-	// Resize options font size if needed
-	while (maxOptionWidth > maxWidth) {
-		optionsFontSize -= 1;
-		ctx.font = `${optionsFontSize}px Arial`;
-		maxOptionWidth = options.reduce((maxWidth, option) => Math.max(maxWidth, ctx.measureText(option).width), 0);
-	}
-
-	// Sort the options in descending order based on the width
-	const sortedOptions = options.map(option => ({
-		text: option,
-		width: ctx.measureText(option).width
-	})).sort((a, b) => b.width - a.width);
-
-	// Draw each option line of text in sorted order
-	sortedOptions.forEach((option, index) => {
-		ctx.font = `${optionsFontSize}px Arial`;
-		ctx.fillText(option.text, width / 2, optionsTextYStart + index * optionsFontSize * 1.1);
-	});
+    // Draw all text elements with specified colors and stroke properties
+    drawTextGroupWithColorsAndStroke(ctx, text, options, width, height, bgColor, textColor, optionColor, lineWidth, strokeStyle);
 
     // Convert canvas to PNG image and send as a response
     const imageBuffer = canvas.toBuffer('image/png');
