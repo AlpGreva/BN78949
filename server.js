@@ -76,11 +76,6 @@ const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight, initialFon
 };
 
 
-
-
-
-
-
 // Function to read text data from a CSV file at an external URL
 const readTextDataFromCSV = async (url) => {
     try {
@@ -131,7 +126,7 @@ const drawTextGroupWithColorsAndStroke = (ctx, textData, options, width, height,
     ctx.strokeStyle = strokeStyle;
 
     // Calculate the maximum width for the text (80% of the banner width)
-    const maxWidth = width * 0.9;
+    const maxWidth = width * 0.8;
 
     // Calculate the maximum height for the text (80% of the canvas height)
     const maxHeight = height * 0.9;
@@ -191,46 +186,76 @@ const drawTextGroupWithColorsAndStroke = (ctx, textData, options, width, height,
     ctx.lineTo(width / 2 + headingWidth / 2, headingYStart + headingInitialFontSize * 0.6);
     ctx.stroke();
 
-    // Set the font size for options
-    ctx.font = `${optionInitialFontSize}px Arial`;
+    // Calculate the starting position for the options text
+    let optionsTextYStart = headingYStart + headingInitialFontSize * 2 + 10; // Add a little space between heading and options lines
 
-    // Calculate the starting position for the options
-    let optionsYStart = headingYStart + headingInitialFontSize * 2 + 17; // Add a little space between heading and options lines
+    // Calculate the font size for options text
+    let optionsFontSize = optionInitialFontSize;
+    let maxOptionWidth = options.reduce((maxWidth, option) => Math.max(maxWidth, ctx.measureText(option).width), 0);
 
-    // Set text color for options
-    ctx.fillStyle = optionColor;
+    // Resize options font size if needed
+    while (maxOptionWidth > maxWidth) {
+        optionsFontSize -= 1;
+        ctx.font = `${optionsFontSize}px Arial`;
+        maxOptionWidth = options.reduce((maxWidth, option) => Math.max(maxWidth, ctx.measureText(option).width), 0);
+    }
 
-    // Draw each option line of text without stroke
-    options.forEach((option, index) => {
-        ctx.fillText(option, width / 2, optionsYStart + index * optionInitialFontSize * 1.1);
+    // Sort the options in descending order based on the width
+    const sortedOptions = options.map(option => ({
+        text: option,
+        width: ctx.measureText(option).width
+    })).sort((a, b) => b.width - a.width);
+
+    // Draw each option line of text in sorted order
+    sortedOptions.forEach((option, index) => {
+        ctx.font = `${optionsFontSize}px Arial`;
+        ctx.fillText(option.text, width / 2, optionsTextYStart + index * optionsFontSize * 1.1);
     });
 };
 
 
+
+
+// Route to generate banners
 // Route to generate banners
 app.get('/banner', async (req, res) => {
-    // Get the URL for the CSV file from the request query
-    const csvFileUrl = req.query.csvUrl;
+    // Check if readCsv query parameter is provided and set to 1
+    const readCsv = req.query.readCsv === '1';
 
-    // Ensure csvUrl is provided by the user
-    if (!csvFileUrl) {
-        res.status(400).send('CSV URL is required');
-        return;
+    let text, options;
+
+    // If readCsv is 1, read text data from CSV file
+    if (readCsv) {
+        // Get the URL for the CSV file from the request query
+        const csvFileUrl = req.query.csvUrl;
+
+        // Ensure csvUrl is provided by the user
+        if (!csvFileUrl) {
+            res.status(400).send('CSV URL is required');
+            return;
+        }
+
+        // Read the text data from the CSV file
+        let textData;
+        try {
+            textData = await readTextDataFromCSV(csvFileUrl);
+        } catch (err) {
+            console.error('Error reading CSV file:', err);
+            res.status(500).send('Error reading CSV file');
+            return;
+        }
+
+        // Use the text data from the CSV file
+        text = textData[0]?.text || 'Default Text';
+        options = [textData[0]?.option1, textData[0]?.option2, textData[0]?.option3].filter(Boolean);
+    } else {
+        // If readCsv is not 1, read main text and options from request query parameters
+        text = req.query.mainText || 'Default Text';
+        const option1 = req.query.option1 || 'Option 1';
+        const option2 = req.query.option2 || 'Option 2';
+        const option3 = req.query.option3 || 'Option 3';
+        options = [option1, option2, option3].filter(Boolean);
     }
-
-    // Read the text data from the CSV file
-    let textData;
-    try {
-        textData = await readTextDataFromCSV(csvFileUrl);
-    } catch (err) {
-        console.error('Error reading CSV file:', err);
-        res.status(500).send('Error reading CSV file');
-        return;
-    }
-
-    // Use the text data from the CSV file
-    const text = textData[0]?.text || 'Default Text';
-    const options = [textData[0]?.option1, textData[0]?.option2, textData[0]?.option3].filter(Boolean);
 
     // Get other parameters from the request query
     const bgColor = req.query.bgColor || '#ffffff';
@@ -309,6 +334,7 @@ app.get('/banner', async (req, res) => {
     res.setHeader('Content-Type', 'image/png');
     res.send(imageBuffer);
 });
+
 
 // Start the server
 app.listen(port, () => {
