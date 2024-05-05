@@ -16,32 +16,44 @@ const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight, initialFon
     let fontSize = initialFontSize; // Initial font size
     let wrappedText = [];
 
-    // Split the text into words
-    const words = text.split(' ');
-
-    // Check if the main text has 4 words or less
-    if (words.length <= 4) {
-        const joinedText = words.join(' ');
-        let lineWidth;
-
-        // Decrease font size until it fits within the maximum width
+    // If the main text has 4 or fewer words, fit all text in one line
+    if (text.split(' ').length <= 4) {
+        // Decrease font size until text fits within maximum width and height
         while (true) {
             ctx.font = `${fontSize}px Lemon`;
-            lineWidth = ctx.measureText(joinedText).width;
-            if (lineWidth <= maxWidth || fontSize <= 1) {
-                wrappedText.push(joinedText);
+            const totalTextWidth = ctx.measureText(text).width;
+            const totalTextHeight = fontSize * 1.2; // Assuming line height is 1.2 times font size
+
+            // If text fits within maximum width and height, or font size becomes too small, break the loop
+            if ((totalTextWidth <= maxWidth && totalTextHeight <= maxHeight) || fontSize <= 1) {
                 break;
             }
+
             fontSize--;
         }
-    } else {
-        // Split the first line into two words
-        const firstLine = words.slice(0, 2).join(' ');
-        wrappedText.push(firstLine);
 
-        // Wrap the remaining words
+        // Push the entire text as wrapped text
+        wrappedText.push(text);
+
+        // Return the wrapped text and calculated font size
+        return {
+            wrappedText,
+            fontSize,
+        };
+    }
+
+    // Decrease font size until text fits within maximum height
+    while (true) {
+        let totalTextHeight = 0;
+        wrappedText = [];
         let line = '';
-        for (let i = 2; i < words.length; i++) {
+        ctx.font = `${fontSize}px Lemon`;
+
+        // Split the text into words
+        const words = text.split(' ');
+
+        // Wrap the words into lines
+        for (let i = 0; i < words.length; i++) {
             const testLine = line === '' ? words[i] : `${line} ${words[i]}`;
             const lineWidth = ctx.measureText(testLine).width;
 
@@ -58,13 +70,16 @@ const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight, initialFon
         if (line !== '') {
             wrappedText.push(line);
         }
-    }
 
-    // Calculate the total text height
-    const totalTextHeight = wrappedText.length * fontSize * 1.2; // Assuming line height is 1.2 times font size
+        // Calculate total text height
+        totalTextHeight = wrappedText.length * fontSize * 1.2; // Assuming line height is 1.2 times font size
 
-    // Decrease the font size if the total text height exceeds the maximum height
-    while (totalTextHeight > maxHeight && fontSize > 1) {
+        // If total text height fits within maximum height or font size becomes too small, break the loop
+        if ((totalTextHeight <= maxHeight && wrappedText.length <= 2) || fontSize <= 1) {
+            break;
+        }
+
+        // Decrease font size
         fontSize--;
     }
 
@@ -74,6 +89,10 @@ const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight, initialFon
         fontSize,
     };
 };
+
+
+
+
 
 
 // Function to read text data from a CSV file at an external URL
@@ -114,7 +133,7 @@ const readTextDataFromCSV = async (url) => {
 
 const drawTextGroupWithColorsAndStroke = (ctx, textData, options, width, height, bgColor, textColor, optionColor, lineWidth, strokeStyle) => {
     // Set initial font sizes for different types of text
-    const mainTextInitialFontSize = 70; // Initial font size for main text
+    const mainTextInitialFontSize = 60; // Initial font size for main text
     const optionInitialFontSize = 40; // Initial font size for options
     const headingInitialFontSize = 45; // Initial font size for "You'll need for this:" heading
 
@@ -126,7 +145,7 @@ const drawTextGroupWithColorsAndStroke = (ctx, textData, options, width, height,
     ctx.strokeStyle = strokeStyle;
 
     // Calculate the maximum width for the text (80% of the banner width)
-    const maxWidth = width * 0.8;
+    const maxWidth = width * 0.9;
 
     // Calculate the maximum height for the text (80% of the canvas height)
     const maxHeight = height * 0.9;
