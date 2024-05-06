@@ -10,9 +10,18 @@ const app = express();
 const port = 3000;
 
 // Register the custom font
-registerFont(path.join(__dirname, 'fonts', 'Lemon-Regular.ttf'), { family: 'Lemon' });
+//registerFont(path.join(__dirname, 'fonts', 'Lemon-Regular.ttf'), { family: 'Lemon' });
 
-const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight, initialFontSize) => {
+// Define font mappings
+const fontMappings = {
+    1: 'Lemon-Regular.ttf',
+    2: 'Arial.ttf',
+	3: 'Cheap Potatoes Black.ttf',
+	4: 'Cheap Potatoes Black Thin.ttf',
+};
+
+
+const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight, initialFontSize, mainFontFamily, optionFontFamily) => {
     let fontSize = initialFontSize; // Initial font size
     let wrappedText = [];
 
@@ -20,7 +29,7 @@ const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight, initialFon
     if (text.split(' ').length <= 4) {
         // Decrease font size until text fits within maximum width and height
         while (true) {
-            ctx.font = `${fontSize}px Lemon`;
+            ctx.font = `${fontSize}px ${mainFontFamily}`;
             const totalTextWidth = ctx.measureText(text).width;
             const totalTextHeight = fontSize * 1.2; // Assuming line height is 1.2 times font size
 
@@ -47,7 +56,7 @@ const wrapTextAndCalculateFontSize = (ctx, text, maxWidth, maxHeight, initialFon
         let totalTextHeight = 0;
         wrappedText = [];
         let line = '';
-        ctx.font = `${fontSize}px Lemon`;
+        ctx.font = `${fontSize}px ${mainFontFamily}`;
 
         // Split the text into words
         const words = text.split(' ');
@@ -131,11 +140,11 @@ const readTextDataFromCSV = async (url) => {
     }
 };
 
-const drawTextGroupWithColorsAndStroke = (ctx, textData, options, width, height, bgColor, textColor, optionColor, lineWidth, strokeStyle) => {
+const drawTextGroupWithColorsAndStroke = (ctx, textData, options, width, height, bgColor, textColor, optionColor, lineWidth, strokeStyle, optionPrefix, mainFontFamily, optionFontFamily) => {
     // Set initial font sizes for different types of text
-    const mainTextInitialFontSize = 60; // Initial font size for main text
-    const optionInitialFontSize = 40; // Initial font size for options
-    const headingInitialFontSize = 45; // Initial font size for "You'll need for this:" heading
+    const mainTextInitialFontSize = 50; // Initial font size for main text
+    const optionInitialFontSize = 30; // Initial font size for options
+    const headingInitialFontSize = 25; // Initial font size for "You'll need for this:" heading
 
     // Set text color
     ctx.fillStyle = textColor;
@@ -170,7 +179,7 @@ const drawTextGroupWithColorsAndStroke = (ctx, textData, options, width, height,
     // Draw each line of wrapped main text with stroke
     mainTextWrapped.forEach((line, index) => {
         // Set font size for each line
-        ctx.font = `${mainTextFontSize}px Lemon`;
+        ctx.font = `${mainTextFontSize}px ${mainFontFamily}`;
 
         // Calculate Y position for the current line
         const yPos = mainTextYStart + index * mainTextFontSize * 1.2;
@@ -198,24 +207,28 @@ const drawTextGroupWithColorsAndStroke = (ctx, textData, options, width, height,
     // Draw the heading
     ctx.fillText("You'll need for this:", width / 2, headingYStart);
 
-    // Underline the heading
-    const headingWidth = ctx.measureText("You'll need for this:").width;
-    ctx.beginPath();
-    ctx.moveTo(width / 2 - headingWidth / 2, headingYStart + headingInitialFontSize * 0.6);
-    ctx.lineTo(width / 2 + headingWidth / 2, headingYStart + headingInitialFontSize * 0.6);
-    ctx.stroke();
+	// Underline the heading with a unique stroke size
+	const headingWidth = ctx.measureText("You'll need for this:").width;
+	const originalLineWidth = ctx.lineWidth; // Save the original line width
+	ctx.lineWidth = 1; // Set a unique line width for the underline
+	ctx.beginPath();
+	ctx.moveTo(width / 2 - headingWidth / 2, headingYStart + headingInitialFontSize * 0.6);
+	ctx.lineTo(width / 2 + headingWidth / 2, headingYStart + headingInitialFontSize * 0.6);
+	ctx.stroke(); // Stroke the underline
+	ctx.lineWidth = originalLineWidth; // Restore the original line width
+
 
     // Calculate the starting position for the options text
-    let optionsTextYStart = headingYStart + headingInitialFontSize * 2 + 10; // Add a little space between heading and options lines
+    let optionsTextYStart = headingYStart + headingInitialFontSize * 2 + 5; // Add a little space between heading and options lines
 
     // Calculate the font size for options text
     let optionsFontSize = optionInitialFontSize;
     let maxOptionWidth = options.reduce((maxWidth, option) => Math.max(maxWidth, ctx.measureText(option).width), 0);
 
     // Resize options font size if needed
-    while (maxOptionWidth > maxWidth) {
+    while (maxOptionWidth > maxWidth * 0.8889 ) {
         optionsFontSize -= 1;
-        ctx.font = `${optionsFontSize}px Arial`;
+        ctx.font = `${optionsFontSize}px ${optionFontFamily}`;
         maxOptionWidth = options.reduce((maxWidth, option) => Math.max(maxWidth, ctx.measureText(option).width), 0);
     }
 
@@ -225,11 +238,14 @@ const drawTextGroupWithColorsAndStroke = (ctx, textData, options, width, height,
         width: ctx.measureText(option).width
     })).sort((a, b) => b.width - a.width);
 
-    // Draw each option line of text in sorted order
-    sortedOptions.forEach((option, index) => {
-        ctx.font = `${optionsFontSize}px Arial`;
-        ctx.fillText(option.text, width / 2, optionsTextYStart + index * optionsFontSize * 1.1);
-    });
+		// Draw each option line of text in sorted order
+	sortedOptions.forEach((option, index) => {
+		// Prepend the special character before each option
+		const optionText = `${optionPrefix} ${option.text}`; // Include the user-specified special character
+		ctx.font = `${optionsFontSize}px ${optionFontFamily}`;
+		ctx.fillText(optionText, width / 2, optionsTextYStart + index * optionsFontSize * 1.1);
+	});
+
 };
 
 
@@ -286,6 +302,15 @@ app.get('/banner', async (req, res) => {
     const height = parseInt(req.query.height) || 1350;
     const bgImageUrl = req.query.bgUrl || 'https://i.postimg.cc/Qd01WRnt/zzaz.png'; // URL for the background image https://i.postimg.cc/MTZRxLsy/zzaz.png
     const imgUrl = req.query.imgUrl || ''; // URL for the other image
+	const optionPrefix = req.query.optionPrefix || '•'; // Default to "•" if not provided
+	
+	const mfontOption = parseInt(req.query.mfontOption) || 1; // Default to 1 if not provided
+    const ofontOption = parseInt(req.query.ofontOption) || 1; // Default to 1 if not provided
+	const mainFontFamily = getFontFamily(mfontOption);
+    const optionFontFamily = getFontFamily(ofontOption);
+	// Register the custom fonts
+    registerFont(path.join(__dirname, 'fonts', fontMappings[mfontOption]), { family: mainFontFamily });
+    registerFont(path.join(__dirname, 'fonts', fontMappings[ofontOption]), { family: optionFontFamily });
 
     // Create a canvas
     const canvas = createCanvas(width, height);
@@ -346,14 +371,29 @@ app.get('/banner', async (req, res) => {
     }
 
     // Draw all text elements with specified colors and stroke properties
-    drawTextGroupWithColorsAndStroke(ctx, text, options, width, height, bgColor, textColor, optionColor, lineWidth, strokeStyle);
+    drawTextGroupWithColorsAndStroke(ctx, text, options, width, height, bgColor, textColor, optionColor, lineWidth, strokeStyle, optionPrefix, mainFontFamily, optionFontFamily);
 
-    // Convert canvas to PNG image and send as a response
+	// Convert canvas to PNG image and send as a response
     const imageBuffer = canvas.toBuffer('image/png');
     res.setHeader('Content-Type', 'image/png');
     res.send(imageBuffer);
 });
 
+	// Function to get font family based on font option
+	const getFontFamily = (fontOption) => {
+		switch (fontOption) {
+			case 1:
+				return 'Lemon';
+			case 2:
+				return 'Arial';
+			case 3:
+				return 'Cheap1';
+			case 4:
+				return 'Cheap2';
+			default:
+				return 'Arial'; // Default to Arial if option is not recognized
+		}
+	};
 
 // Start the server
 app.listen(port, () => {
